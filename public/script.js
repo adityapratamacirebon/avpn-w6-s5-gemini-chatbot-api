@@ -40,13 +40,13 @@ form.addEventListener("submit", async function (e) {
     const botResponse = data.result;
 
     // Update pesan "thinking..." dengan balasan dari bot
-    thinkingMsg.textContent = botResponse;
+    thinkingMsg.innerHTML = renderMarkdown(botResponse);
 
     // Tambahkan balasan bot ke riwayat
     history.push({ role: "model", parts: [{ text: botResponse }] });
   } catch (error) {
     console.error("Error fetching chat response:", error);
-    thinkingMsg.textContent =
+    thinkingMsg.innerHTML =
       "Sorry, something went wrong. Please check the console and try again.";
     thinkingMsg.classList.add("error"); // Opsional: untuk styling pesan error
   }
@@ -59,4 +59,24 @@ function appendMessage(sender, text) {
   chatBox.appendChild(msg);
   chatBox.scrollTop = chatBox.scrollHeight;
   return msg; // Kembalikan elemen pesan agar bisa di-update
+}
+
+/**
+ * Mengonversi string Markdown sederhana menjadi HTML.
+ * Fungsi ini menangani:
+ * - Teks tebal (**bold**)
+ * - Daftar tidak berurutan (* list)
+ * - Baris baru
+ * @param {string} text - Teks Markdown yang akan dikonversi.
+ * @returns {string} - String HTML yang sudah diformat.
+ */
+function renderMarkdown(text) {
+  // 1. Ganti **text** menjadi <strong>text</strong>
+  let html = text.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
+
+  // 2. Ganti baris baru (\n) menjadi tag <br>
+  // Ini akan memastikan setiap baris baru di respons Gemini ditampilkan dengan benar.
+  html = html.replace(/\n/g, "<br>");
+
+  return html;
 }
