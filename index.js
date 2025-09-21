@@ -20,10 +20,8 @@ const GEMINI_MODEL = "gemini-2.5-flash";
  */
 const extractText = (resp) => {
   try {
-    const text =
-      resp?.response?.candidates?.[0]?.content?.parts?.[0]?.text ??
-      resp?.candidates?.[0]?.content?.parts?.[0]?.text ??
-      resp?.response?.candidates?.[0]?.content?.text;
+    // Use the built-in `text()` accessor if available, otherwise fallback to manual extraction.
+    const text = resp.text ?? resp?.candidates?.[0]?.content?.parts?.[0]?.text;
     return text ?? JSON.stringify(resp, null, 2);
   } catch (error) {
     console.error(error);
@@ -35,21 +33,52 @@ app.use(cors()); // use() ---> panggil / bikin middleware
 //app.use(cors() => {}); // pakai bikin middleware sendiri
 app.use(express.json()); //untuk memperblehkan kita menggunakan "Content-Type: application/ json" di header
 
-app.post("/chat", async (req, res) => {
+// Middleware untuk menyajikan file statis dari folder 'public'
+app.use(express.static("public"));
+
+app.post("/api/chat", async (req, res) => {
   try {
-    const { messages } = req.body;
-    if (!Array.isArray(messages) || messages.length === 0)
-      throw new error("Pesan harus berupa Array!!");
-    const contents = messages.map((message) => ({
-      role: message.role,
-      parts: [{ text: message.content }],
-    }));
-    const response = await ai.models.generateContent({
+    // Buat salinan dari messages agar array asli tidak termodifikasi
+    const messages = [...req.body.messages];
+
+    // Validate that messages is an array
+    if (!messages || !Array.isArray(messages)) {
+      return res
+        .status(400)
+        .json({ error: "Input 'messages' must be an array." });
+    }
+
+    // The user's prompt is the last message in the history
+    const lastMessage = messages.pop();
+    if (!lastMessage || lastMessage.role !== "user") {
+      return res.status(400).json({
+        error: "The last message in the history must be from the 'user'.",
+      });
+    }
+
+    // The `ai.chats.create` method is the correct way to start a chat session
+    // with the @google/genai SDK. It takes the model and the history.
+    const chat = ai.chats.create({
       model: GEMINI_MODEL,
-      contents,
+      history: messages,
+    });
+
+    // Send the last message to the model. The `sendMessage` method expects
+    // an object with a `message` property containing the parts.
+    const result = await chat.sendMessage({ message: lastMessage.parts });
+
+    // Extract the AI's response text
+    const aiResponse = extractText(result);
+
+    res.json({
+      result: aiResponse,
     });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error("Error processing chat:", error);
+    res.status(500).json({
+      error:
+        "An internal server error occurred while processing the chat request.",
+    });
   }
 });
 
